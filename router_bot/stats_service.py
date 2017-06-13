@@ -9,7 +9,7 @@ import datetime
 import logging
 from .error import StrangerSenderServiceError
 from .stats import Stats
-from peewee import *
+from peewee import DoesNotExist
 
 COUNT_INTERVALS = (4, 16, 64, 256)
 LOGGER = logging.getLogger('router_bot.stats_service')
@@ -53,10 +53,9 @@ def increment_distribution(d, value, intervals):
 
 
 class StatsService:
-    INTERVAL = datetime.timedelta(hours=4)
+    INTERVAL = datetime.timedelta(hours=1)
 
     def __init__(self):
-        type(self)._instance = self
         try:
             self._stats = Stats.select().order_by(Stats.created.desc()).get()
         except DoesNotExist:
@@ -66,9 +65,11 @@ class StatsService:
     @classmethod
     def get_instance(cls):
         try:
-            return cls._instance
+            instance = cls._instance
         except AttributeError:
-            raise RuntimeError('StatsService was not initialized')
+            instance = StatsService()
+            cls._instance = instance
+        return instance
 
     def get_stats(self):
         return self._stats
@@ -88,27 +89,6 @@ class StatsService:
         stats = Stats()
         stranger_service = StrangerService.get_instance()
 
-        sex_distribution = {}
-        partner_sex_distribution = {}
-        languages_count_distribution = {}
-        languages_popularity = {}
-        total_count = 0
-        for stranger in stranger_service.get_full_strangers():
-            total_count += 1
-            increment(sex_distribution, stranger.sex)
-            increment(partner_sex_distribution, stranger.partner_sex)
-            increment(languages_count_distribution, len(stranger.get_languages()))
-            for language in stranger.get_languages():
-                increment(languages_popularity, language)
-        languages_count_distribution_items = list(languages_count_distribution.items())
-        languages_count_distribution_items.sort(key=lambda item: item[0])
-        valuable_count = total_count / 100
-        languages_popularity_items = [
-            (language, popularity)
-            for language, popularity in languages_popularity.items() if popularity >= valuable_count
-            ]
-        languages_popularity_items.sort(key=lambda item: item[1], reverse=True)
-
         talks_waiting = get_talks_stats(
             Talk.get_not_ended_talks(after=None if self._stats is None else self._stats.created),
             lambda talk: (talk.begin - talk.searched_since).total_seconds(),
@@ -127,35 +107,12 @@ class StatsService:
             COUNT_INTERVALS,
             )
 
-        if self._stats is not None:
-            Talk.delete_old(before=self._stats.created)
-
-        stats_json = {
-            'languages_count_distribution': languages_count_distribution_items,
-            'languages_popularity': languages_popularity_items,
-            'languages_to_orientation': languages_to_orientation_items,
-            'partner_sex_distribution': partner_sex_distribution,
-            'sex_distribution': sex_distribution,
-            'total_count': total_count,
+        stats_dict = {
             'talks_duration': talks_duration,
             'talks_sent': talks_sent,
             'talks_waiting': talks_waiting,
             }
-        stats.set_data(stats_json)
+        stats.set_data(stats_dict)
         stats.save()
         self._stats = stats
         LOGGER.info('Stats were updated')
-        LOGGER.debug(
-            'StrangerService cache size: %d',
-            StrangerService.get_instance().get_cache_size(),
-            )
-        try:
-            LOGGER.debug(
-                'StrangerSenderService cache size: %d',
-                StrangerSenderService.get_instance().get_cache_size(),
-                )
-        except StrangerSenderServiceError:
-            LOGGER.debug(
-                'StrangerSenderService isn\'t initialized and can\'t provide '
-                'its cache size.'
-                )

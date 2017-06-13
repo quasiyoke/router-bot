@@ -175,6 +175,9 @@ class Stranger(Model):
         await self.set_partner(None)
 
     async def set_partner(self, partner):
+        """Sets partner for a stranger. Always saves the model.
+
+        """
         if self.get_partner() == partner:
             self.save()
             return
@@ -189,6 +192,7 @@ class Stranger(Model):
         if partner is None:
             self._talk = None
             self._partner = None
+            self.save()
         else:
             from .talk import Talk
             self._talk = Talk.create(

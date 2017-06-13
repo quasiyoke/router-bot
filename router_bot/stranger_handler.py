@@ -103,8 +103,6 @@ class StrangerHandler(telepot.aio.helper.UserHandler):
         if chat_type != 'private':
             return
 
-        print(message_dict)
-
         try:
             message = Message(message_dict)
         except UnsupportedContentError:

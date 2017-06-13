@@ -14,6 +14,7 @@ from .bot import Bot
 from .configuration import Configuration
 from .db import DB
 from .error import ConfigurationObtainingError, DBError
+from .stats_service import StatsService
 from .stranger_sender_service import StrangerSenderService
 from .util import __version__
 from docopt import docopt
@@ -61,6 +62,9 @@ def main():
 
             bot = Bot(configuration)
             asyncio.ensure_future(bot.run())
+
+            stats_service = StatsService.get_instance()
+            asyncio.ensure_future(stats_service.run())
 
             try:
                 loop.run_forever()
