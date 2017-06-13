@@ -1,0 +1,61 @@
+# router-bot
+# Copyright (C) 2017 quasiyoke
+#
+# You should have received a copy of the GNU Affero General Public License v3
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+import base64
+import binascii
+import logging
+import json
+import re
+import telepot
+from .error import UnsupportedContentError
+
+LOGGER = logging.getLogger('router_bot.message')
+
+
+class Message:
+    COMMAND_RE_PATTERN = re.compile('^/([a-z_]+)\\b\s*(.*)$')
+
+    def __init__(self, message_json):
+        try:
+            content_type, chat_type, chat_id = telepot.glance(message_json)
+        except KeyError:
+            raise UnsupportedContentError()
+        if 'forward_from' in message_json:
+            raise UnsupportedContentError()
+        self.is_reply = 'reply_to_message' in message_json
+        self.text = message_json.get('text')
+        self.type = content_type
+        self.command = None
+        self.command_args = None
+        try:
+            init_method = getattr(self, '_init_' + content_type)
+        except AttributeError:
+            raise UnsupportedContentError()
+        init_method(message_json)
+
+    def decode_command_args(self):
+        try:
+            command_args = base64.urlsafe_b64decode(self.command_args)
+        except (TypeError, ValueError, binascii.Error) as err:
+            raise UnsupportedContentError(f'Can\'t decode base 64: {err}')
+        try:
+            command_args = command_args.decode('utf-8')
+        except UnicodeDecodeError as err:
+            raise UnsupportedContentError(f'Can\'t decode UTF-8: {err}')
+        try:
+            command_args = json.loads(command_args)
+        except (TypeError, ValueError) as err:
+            raise UnsupportedContentError(f'Can\'t decode JSON: {err}')
+        return command_args
+
+    def _init_text(self, message_json):
+        self.sending_kwargs = {
+            'text': self.text,
+            }
+        command_match = type(self).COMMAND_RE_PATTERN.match(self.text)
+        if command_match:
+            self.command = command_match.group(1)
+            self.command_args = command_match.group(2)
