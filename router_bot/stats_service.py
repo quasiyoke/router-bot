@@ -7,7 +7,7 @@
 import asyncio
 import datetime
 import logging
-from .error import StrangerSenderServiceError
+from .error import HumanSenderServiceError
 from .stats import Stats
 from peewee import DoesNotExist
 
@@ -83,11 +83,11 @@ class StatsService:
             self._update_stats()
 
     def _update_stats(self):
-        from .stranger_service import StrangerService
-        from .stranger_sender_service import StrangerSenderService
+        from .user_service import UserService
+        from .human_sender_service import HumanSenderService
         from .talk import Talk
         stats = Stats()
-        stranger_service = StrangerService.get_instance()
+        user_service = UserService.get_instance()
 
         talks_waiting = get_talks_stats(
             Talk.get_not_ended_talks(after=None if self._stats is None else self._stats.created),

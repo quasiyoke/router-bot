@@ -5,24 +5,24 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
-from .error import StrangerSenderServiceError
-from .stranger_sender import StrangerSender
+from .error import HumanSenderServiceError
+from .human_sender import HumanSender
 
-LOGGER = logging.getLogger('router_bot.stranger_sender_service')
+LOGGER = logging.getLogger('router_bot.human_sender_service')
 
 
-class StrangerSenderService:
+class HumanSenderService:
     _instance = None
 
     def __init__(self, bot):
         self._bot = bot
-        self._stranger_senders = {}
+        self._human_senders = {}
 
     @classmethod
     def get_instance(cls, bot=None):
         if cls._instance is None:
             if bot is None:
-                raise StrangerSenderServiceError(
+                raise HumanSenderServiceError(
                     'Instance wasn\'t initialized. Provide arguments to '
                     'construct one.',
                     )
@@ -31,12 +31,12 @@ class StrangerSenderService:
         return cls._instance
 
     def get_cache_size(self):
-        return len(self._stranger_senders)
+        return len(self._human_senders)
 
-    def get_or_create_stranger_sender(self, stranger):
+    def get_or_create_human_sender(self, human):
         try:
-            return self._stranger_senders[stranger.telegram_id]
+            human_sender = self._human_senders[human.telegram_id]
         except KeyError:
-            stranger_sender = StrangerSender(self._bot, stranger)
-            self._stranger_senders[stranger.telegram_id] = stranger_sender
-            return stranger_sender
+            human_sender = HumanSender(self._bot, human)
+            self._human_senders[human.telegram_id] = human_sender
+        return human_sender

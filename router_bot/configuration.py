@@ -8,6 +8,7 @@ import codecs
 import json
 import logging
 from .error import ConfigurationObtainingError
+from telegram_bot_server import DictConfiguration as ServerConfiguration
 
 LOGGER = logging.getLogger('router_bot.configuration')
 
@@ -31,6 +32,7 @@ class Configuration:
             self.database_user = configuration_json['database']['user']
             self.database_password = configuration_json['database']['password']
             self.logging = configuration_json['logging']
+            self.server = ServerConfiguration(configuration_json['server'])
             self.token = configuration_json['token']
         except (KeyError, TypeError) as err:
             LOGGER.error('Troubles with obtaining parameters: %s', err)

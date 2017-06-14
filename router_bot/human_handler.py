@@ -11,35 +11,35 @@ import re
 import sys
 import telepot
 import telepot.aio
-from .error import MissingPartnerError, PartnerObtainingError, \
-    StrangerError, StrangerHandlerError, StrangerServiceError, \
+from .error import DbError, MissingPartnerError, PartnerObtainingError, \
+    UserError, HumanHandlerError, UserServiceError, \
     UnknownCommandError, UnsupportedContentError
+from .human import Human
+from .human_sender import HumanSender
+from .human_sender_service import HumanSenderService
 from .message import Message
-from .stranger_sender import StrangerSender
-from .stranger_sender_service import StrangerSenderService
-from .stranger_service import StrangerService
+from .user_service import UserService
 from .util import __version__
 from telepot.exception import TelegramError
 
-LOGGER = logging.getLogger('router_bot.stranger_handler')
+LOGGER = logging.getLogger('router_bot.human_handler')
 
 
-class StrangerHandler(telepot.aio.helper.UserHandler):
+class HumanHandler(telepot.aio.helper.UserHandler):
     HOUR_TIMEDELTA = datetime.timedelta(hours=1)
     LONG_WAITING_TIMEDELTA = datetime.timedelta(minutes=10)
 
     def __init__(self, seed_tuple, *args, **kwargs):
-        super(StrangerHandler, self).__init__(seed_tuple, *args, **kwargs)
+        super(HumanHandler, self).__init__(seed_tuple, *args, **kwargs)
         bot, initial_msg, seed = seed_tuple
         self._from_id = initial_msg['from']['id']
         try:
-            self._stranger = StrangerService.get_instance(). \
-                get_or_create_stranger(self._from_id)
-        except StrangerServiceError as err:
-            LOGGER.error('Problems with StrangerHandler construction: %s', err)
-            sys.exit('Problems with StrangerHandler construction: {err}')
-        self._sender = StrangerSenderService.get_instance(bot). \
-            get_or_create_stranger_sender(self._stranger)
+            self._human = Human.get_or_create_human(self._from_id)
+        except DbError as err:
+            LOGGER.error('Problems with obtaining the human: %s', err)
+            sys.exit('Problems with obtaining the human: {err}')
+        self._sender = HumanSenderService.get_instance(bot). \
+            get_or_create_human_sender(self._human)
 
     async def handle_command(self, message):
         handler_name = '_handle_command_' + message.command
@@ -51,21 +51,21 @@ class StrangerHandler(telepot.aio.helper.UserHandler):
 
     async def _handle_command_begin(self, message):
         try:
-            await StrangerService.get_instance().match_partner(self._stranger)
+            await UserService.get_instance().match_partner(self._human)
         except PartnerObtainingError:
-            LOGGER.debug('Looking for partner: %d', self._stranger.id)
-            await self._stranger.set_looking_for_partner()
-        except StrangerServiceError as err:
-            LOGGER.warning('Can\'t set partner for %d. %s', self._stranger.id, err)
+            LOGGER.debug('Looking for partner: %d', self._human.id)
+            await self._human.set_looking_for_partner()
+        except UserServiceError as err:
+            LOGGER.warning('Can\'t set partner for %d. %s', self._human.id, err)
 
     async def _handle_command_end(self, message):
-        partner = self._stranger.get_partner()
+        partner = self._human.get_partner()
         LOGGER.debug(
             '/end: %d -x-> %s',
-            self._stranger.id,
+            self._human.id,
             'none' if partner is None else partner.id,
             )
-        await self._stranger.end_talk()
+        await self._human.end_talk()
 
     async def _handle_command_help(self, message):
         try:
@@ -82,17 +82,17 @@ class StrangerHandler(telepot.aio.helper.UserHandler):
                 disable_web_page_preview=True,
                 )
         except TelegramError as err:
-            LOGGER.warning('Handle /help command. Can\'t notify stranger. %s', err)
+            LOGGER.warning('Handle /help command. Can\'t notify user. %s', err)
 
     async def _handle_command_start(self, message):
-        LOGGER.debug('/start: %d', self._stranger.id)
+        LOGGER.debug('/start: %d', self._human.id)
         try:
             await self._sender.send_notification(
                 '*Manual*\n\nHi, I’m Conversational Intelligence Challenge master-bot. Use /begin to start looking '
                 'for a conversational partner, once you\'re matched you can use /end to end the conversation.'
                 )
         except TelegramError as err:
-            LOGGER.warning('Handle /start command. Can\'t notify stranger. %s', err)
+            LOGGER.warning('Handle /start command. Can\'t notify user. %s', err)
 
     async def on_close(self, error):
         pass
@@ -116,21 +116,21 @@ class StrangerHandler(telepot.aio.helper.UserHandler):
                 await self._sender.send_notification('Unknown command. Look /help for the full list of commands.')
         else:
             try:
-                await self._stranger.send_to_partner(message)
+                await self._human.send_to_partner(message)
             except MissingPartnerError:
                 pass
-            except StrangerError:
+            except UserError:
                 await self._sender.send_notification('Messages of this type aren\'t supported.')
             except TelegramError:
                 LOGGER.warning(
                     'Send message. Can\'t send to partner: %d -> %d',
-                    self._stranger.id,
-                    self._stranger.get_partner().id,
+                    self._human.id,
+                    self._human.get_partner().id,
                     )
                 await self._sender.send_notification(
                     'Your partner has blocked me! How did you do that?!',
                     )
-                await self._stranger.end_talk()
+                await self._human.end_talk()
 
     async def on_edited_chat_message(self, message_dict):
         LOGGER.info('User tried to edit their message.')

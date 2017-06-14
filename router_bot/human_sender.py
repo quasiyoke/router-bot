@@ -8,21 +8,21 @@ import asyncio
 import logging
 import re
 import telepot
-from .error import StrangerSenderError
+from .error import HumanSenderError
 
-LOGGER = logging.getLogger('router_bot.stranger_sender')
+LOGGER = logging.getLogger('router_bot.human_sender')
 
 
-class StrangerSender(telepot.helper.Sender):
+class HumanSender(telepot.helper.Sender):
     MESSAGE_TYPE_TO_METHOD_NAME = {
         'text': 'sendMessage',
         }
     MARKDOWN_RE = re.compile(r'([\[\*_`])')
 
-    def __init__(self, bot, stranger):
-        super(StrangerSender, self).__init__(bot, stranger.telegram_id)
+    def __init__(self, bot, user):
+        super(HumanSender, self).__init__(bot, user.telegram_id)
         self._bot = bot
-        self._stranger = stranger
+        self._user = user
 
     @classmethod
     def _escape_markdown(cls, s):
@@ -35,34 +35,26 @@ class StrangerSender(telepot.helper.Sender):
         s = cls.MARKDOWN_RE.sub(r'\\\1', s)
         return s
 
-    async def answer_inline_query(self, query_id, answers):
-        for answer in answers:
-            if answer['type'] == 'article':
-                answer['title'] = translate(answer['title'])
-                answer['description'] = translate(answer['description'])
-                answer['message_text'] = translate(answer['message_text'])
-        await self._bot.answerInlineQuery(query_id, answers, is_personal=True)
-
     async def send(self, message):
         """
-        @raises StrangerSenderError if message's content type is not supported.
-        @raises TelegramError if stranger has blocked the bot.
+        @raises HumanSenderError if message's content type is not supported.
+        @raises TelegramError if user has blocked the bot.
         """
         if message.is_reply:
-            raise StrangerSenderError('Reply can\'t be sent.')
+            raise HumanSenderError('Reply can\'t be sent.')
         try:
-            method_name = StrangerSender.MESSAGE_TYPE_TO_METHOD_NAME[message.type]
+            method_name = HumanSender.MESSAGE_TYPE_TO_METHOD_NAME[message.type]
         except KeyError:
-            raise StrangerSenderError(f'Unsupported content_type: {message.type}')
+            raise HumanSenderError(f'Unsupported content_type: {message.type}')
         else:
             await getattr(self, method_name)(**message.sending_kwargs)
 
     async def send_notification(self, message, *args, disable_notification=None, disable_web_page_preview=None,
                                 reply_markup=None):
         """
-        @raise TelegramError if stranger has blocked the bot.
+        @raise TelegramError if user has blocked the bot.
         """
-        args = [StrangerSender._escape_markdown(arg) for arg in args]
+        args = [HumanSender._escape_markdown(arg) for arg in args]
         message = message.format(*args)
         if reply_markup and 'keyboard' in reply_markup:
             reply_markup = {

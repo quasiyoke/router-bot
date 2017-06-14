@@ -4,21 +4,26 @@
 # You should have received a copy of the GNU Affero General Public License v3
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""router_bot.router_bot: provides entry point main()."""
+"""Provides entry point main().
+
+"""
 
 import asyncio
 import logging
 import logging.config
 import sys
 from .bot import Bot
+from .client_bot_service import ClientBotService
 from .configuration import Configuration
-from .db import DB
-from .error import ConfigurationObtainingError, DBError
+from .db import Db
+from .error import ConfigurationObtainingError, DbError
+from .human_sender_service import HumanSenderService
+from .server import Server
 from .stats_service import StatsService
-from .stranger_sender_service import StrangerSenderService
 from .util import __version__
 from docopt import docopt
-from router_bot import stranger, stranger_service
+from router_bot import user, user_service
+from telegram_bot_server import SimpleUpdateService
 
 DOC = '''router-bot
 
@@ -30,7 +35,7 @@ Usage:
 Arguments:
   CONFIGURATION  Path to configuration.json file.
 '''
-LOGGER = logging.getLogger('router_bot')
+LOGGER = logging.getLogger('router_bot.router_bot')
 
 
 def main():
@@ -45,8 +50,8 @@ def main():
     logging.config.dictConfig(configuration.logging)
 
     try:
-        db = DB(configuration)
-    except DBError as err:
+        db = Db(configuration)
+    except DbError as err:
         sys.exit(f'Can\'t construct DB. {err}')
 
     try:
@@ -54,7 +59,7 @@ def main():
             LOGGER.info('Installing router-bot')
             try:
                 db.install()
-            except DBError as err:
+            except DbError as err:
                 sys.exit(f'Can\'t install databases. {err}')
         else:
             LOGGER.info('Executing router-bot')
@@ -65,6 +70,14 @@ def main():
 
             stats_service = StatsService.get_instance()
             asyncio.ensure_future(stats_service.run())
+
+            update_service = SimpleUpdateService()
+            bot_service = ClientBotService(update_service=update_service)
+            server = Server(
+                bot_service=bot_service,
+                configuration=configuration.server,
+                update_service=update_service,
+                )
 
             try:
                 loop.run_forever()

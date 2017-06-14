@@ -5,19 +5,16 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import asyncio
-import base64
 import datetime
 import json
 import logging
-import random
-import string
-from .error import MissingPartnerError, StrangerError, StrangerSenderError
+from .error import MissingPartnerError, UserError, HumanSenderError
 from .stats_service import StatsService
-from .stranger_sender_service import StrangerSenderService
+from .human_sender_service import HumanSenderService
 from peewee import CharField, DateTimeField, IntegerField, Model, Proxy
 from telepot.exception import TelegramError
 
-LOGGER = logging.getLogger('router_bot.stranger')
+LOGGER = logging.getLogger('router_bot.user')
 WIZARD_CHOICES = (
     ('none', 'None'),
     ('setup', 'Setup'),
@@ -25,11 +22,8 @@ WIZARD_CHOICES = (
 database_proxy = Proxy()
 
 
-class Stranger(Model):
+class User(Model):
     looking_for_partner_from = DateTimeField(null=True)
-    telegram_id = IntegerField(unique=True)
-    wizard = CharField(choices=WIZARD_CHOICES, default='none', max_length=20)
-    wizard_step = CharField(max_length=20, null=True)
 
     LONG_WAITING_TIMEDELTA = datetime.timedelta(minutes=5)
     UNMUTE_BONUSES_NOTIFICATIONS_DELAY = 60 * 60
@@ -39,18 +33,18 @@ class Stranger(Model):
 
     async def end_talk(self):
         if self.looking_for_partner_from is not None:
-            # If stranger is looking for partner
+            # If user is looking for partner
             self.looking_for_partner_from = None
             try:
                 await self.get_sender().send_notification('Looking for partner was stopped.')
             except TelegramError as err:
-                LOGGER.warning('End chatting. Can\'t notify stranger %d: %s', self.id, err)
+                LOGGER.warning('End chatting. Can\'t notify user %d: %s', self.id, err)
         elif self.get_partner() is not None:
-            # If stranger is chatting now
+            # If user is chatting now
             try:
                 await self._notify_talk_ended(by_self=True)
-            except StrangerError as err:
-                LOGGER.warning('End chatting. Can\'t notify stranger %d: %s', self.id, err)
+            except UserError as err:
+                LOGGER.warning('End chatting. Can\'t notify user %d: %s', self.id, err)
         await self.set_partner(None)
 
     def get_partner(self):
@@ -62,7 +56,7 @@ class Stranger(Model):
             return self._partner
 
     def get_sender(self):
-        return StrangerSenderService.get_instance().get_or_create_stranger_sender(self)
+        return HumanSenderService.get_instance().get_or_create_human_sender(self)
 
     def get_talk(self):
         try:
@@ -75,15 +69,15 @@ class Stranger(Model):
     async def kick(self):
         try:
             await self._notify_talk_ended(by_self=False)
-        except StrangerError as err:
-            LOGGER.warning('Kick. Can\'t notify stranger %d: %s', self.id, err)
+        except UserError as err:
+            LOGGER.warning('Kick. Can\'t notify user %d: %s', self.id, err)
         self._talk = None
         self._partner = None
 
     async def _notify_talk_ended(self, by_self):
         """
         Raises:
-            StrangerError If stranger we're changing has blocked the bot.
+            UserError If user we're changing has blocked the bot.
 
         """
         sender = self.get_sender()
@@ -99,12 +93,12 @@ class Stranger(Model):
         try:
             await sender.send_notification(' '.join(sentences))
         except TelegramError as err:
-            raise StrangerError(str(err))
+            raise UserError(str(err))
 
     async def notify_partner_found(self, partner):
         """
         Raises:
-            StrangerError If stranger we're changing has blocked the bot.
+            UserError If user we're changing has blocked the bot.
 
         """
         sender = self.get_sender()
@@ -113,12 +107,12 @@ class Stranger(Model):
         if self.get_partner() is None:
             sentences.append('Your partner is here.')
         else:
-            sentences.append('Here\'s another stranger.')
+            sentences.append('Here\'s another user.')
 
         if partner.looking_for_partner_from:
             looked_for_partner_for = datetime.datetime.utcnow() - partner.looking_for_partner_from
             if looked_for_partner_for >= type(self).LONG_WAITING_TIMEDELTA:
-                # Notify Stranger if his partner did wait too much and could be asleep.
+                # Notify User if his partner did wait too much and could be asleep.
                 minutes = round(looked_for_partner_for.total_seconds() / 60)
                 long_waiting_notification = f'Your partner\'s been looking for you for {minutes} min. Say him ' \
                     '\"Hello\" -- if he doesn\'t respond to you, launch search again by /begin command.'
@@ -130,23 +124,23 @@ class Stranger(Model):
         try:
             await sender.send_notification(' '.join(sentences))
         except TelegramError as err:
-            raise StrangerError(f'Can\'t notify stranger {self.id}. {err}') from err
+            raise UserError(f'Can\'t notify user {self.id}. {err}') from err
 
     async def send(self, message):
         """
-        @raise StrangerError if can't send message because of unknown content type.
-        @raise TelegramError if stranger has blocked the bot.
+        @raise UserError if can't send message because of unknown content type.
+        @raise TelegramError if user has blocked the bot.
         """
         sender = self.get_sender()
         try:
             await sender.send(message)
-        except StrangerSenderError as err:
-            raise StrangerError(f'Can\'t send content: {err}') from err
+        except HumanSenderError as err:
+            raise UserError(f'Can\'t send content: {err}') from err
 
     async def send_to_partner(self, message):
         """
-        @raise MissingPartnerError if there's no partner for this stranger.
-        @raise StrangerError if can't send content.
+        @raise MissingPartnerError if there's no partner for this user.
+        @raise UserError if can't send content.
         @raise TelegramError if the partner has blocked the bot.
         """
         partner = self.get_partner()
@@ -165,17 +159,17 @@ class Stranger(Model):
         if self.looking_for_partner_from is None:
             self.looking_for_partner_from = datetime.datetime.utcnow()
         try:
-            await self.get_sender().send_notification('Looking for a stranger for you.')
+            await self.get_sender().send_notification('Looking for a user for you.')
         except TelegramError as err:
             LOGGER.debug(
-                'Set looking for partner. Can\'t notify stranger. %s',
+                'Set looking for partner. Can\'t notify user. %s',
                 err,
                 )
             self.looking_for_partner_from = None
         await self.set_partner(None)
 
     async def set_partner(self, partner):
-        """Sets partner for a stranger. Always saves the model.
+        """Sets partner for a user. Always saves the model.
 
         """
         if self.get_partner() == partner:
@@ -183,7 +177,7 @@ class Stranger(Model):
             return
         if self._partner is not None:
             if self._partner.get_partner() == self:
-                # If partner isn't talking with the stranger because of some
+                # If partner isn't talking with the user because of some
                 # error, we shouldn't kick him.
                 await self._partner.kick()
             if self._talk is not None:

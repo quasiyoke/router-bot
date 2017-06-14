@@ -7,16 +7,16 @@
 import asyncio
 import logging
 import re
-from .error import StrangerError, StrangerServiceError
-from .stranger import MissingPartnerError
-from .stranger_handler import StrangerHandler
-from .stranger_service import StrangerService
+from .error import UserError, UserServiceError
+from .user import MissingPartnerError
+from .human_handler import HumanHandler
+from .user_service import UserService
 from telepot.exception import TelegramError
 
 LOGGER = logging.getLogger('router_bot.admin_handler')
 
 
-class AdminHandler(StrangerHandler):
+class AdminHandler(HumanHandler):
     async def _handle_command_clear(self, message):
         someone_was_cleared = False
         for telegram_id in re.split(r'\s+', message.command_args):
@@ -26,13 +26,13 @@ class AdminHandler(StrangerHandler):
                 await self._sender.send_notification('Is it really telegram_id: \"{0}\"?', telegram_id)
                 continue
             try:
-                stranger = StrangerService.get_instance().get_stranger(telegram_id)
-            except StrangerServiceError as e:
-                await self._sender.send_notification('Stranger {0} wasn\'t found: {1}', telegram_id, e)
+                user = UserService.get_instance().get_user(telegram_id)
+            except UserServiceError as e:
+                await self._sender.send_notification('User {0} wasn\'t found: {1}', telegram_id, e)
                 continue
-            await stranger.end_talk()
-            await self._sender.send_notification('Stranger {0} was cleared', telegram_id)
-            LOGGER.debug('Clear: %d -> %d', self._stranger.id, telegram_id)
+            await user.end_talk()
+            await self._sender.send_notification('User {0} was cleared', telegram_id)
+            LOGGER.debug('Clear: %d -> %d', self._user.id, telegram_id)
             someone_was_cleared = True
         if not someone_was_cleared:
             await self._sender.send_notification('Use it this way: `/clear 31416 27183`')

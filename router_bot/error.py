@@ -9,7 +9,7 @@ class ConfigurationObtainingError(Exception):
     pass
 
 
-class DBError(Exception):
+class DbError(Exception):
     pass
 
 
@@ -25,23 +25,23 @@ class PartnerObtainingError(Exception):
     pass
 
 
-class StrangerError(Exception):
+class UserError(Exception):
     pass
 
 
-class StrangerHandlerError(Exception):
+class HumanHandlerError(Exception):
     pass
 
 
-class StrangerSenderError(Exception):
+class HumanSenderError(Exception):
     pass
 
 
-class StrangerSenderServiceError(Exception):
+class HumanSenderServiceError(Exception):
     pass
 
 
-class StrangerServiceError(Exception):
+class UserServiceError(Exception):
     pass
 
 
@@ -55,5 +55,5 @@ class UnsupportedContentError(Exception):
     pass
 
 
-class WrongStrangerError(Exception):
+class WrongUserError(Exception):
     pass

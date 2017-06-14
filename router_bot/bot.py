@@ -8,8 +8,8 @@ import asyncio
 import logging
 import telepot
 from .admin_handler import AdminHandler
-from .stranger_handler import StrangerHandler
-from .stranger_service import StrangerService
+from .human_handler import HumanHandler
+from .user_service import UserService
 from telepot.delegate import per_from_id_in, per_from_id_except
 from telepot.aio.delegate import create_open, pave_event_space
 
@@ -18,8 +18,8 @@ LOGGER = logging.getLogger('router_bot.bot')
 
 class Bot:
     def __init__(self, configuration):
-        stranger_service = StrangerService.get_instance()
-        admins_telegram_ids = stranger_service.admins_telegram_ids
+        user_service = UserService.get_instance()
+        admins_telegram_ids = user_service.admins_telegram_ids
         self._delegator_bot = telepot.aio.DelegatorBot(
             configuration.token,
             [
@@ -32,11 +32,11 @@ class Bot:
                     timeout=60,
                     ),
                 # If the bot is chatting with an admin, skip, so for this chat
-                # will be used another handler, not StrangerHandler.
+                # will be used another handler, not HumanHandler.
                 pave_event_space()(
                     per_from_id_except(admins_telegram_ids),
                     create_open,
-                    StrangerHandler,
+                    HumanHandler,
                     timeout=60,
                     ),
                 ],

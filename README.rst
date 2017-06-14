@@ -66,6 +66,9 @@ After that write ``configuration/configuration.json`` file like that::
                 "handlers": ["console"]
             }
         },
+        "server": {
+            "port": 8000
+        },
         "token": "123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789"
     }
 
