@@ -5,9 +5,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import asyncio
-import datetime
 import logging
-import re
 import sys
 import telepot
 import telepot.aio
@@ -26,9 +24,6 @@ LOGGER = logging.getLogger('router_bot.human_handler')
 
 
 class HumanHandler(telepot.aio.helper.UserHandler):
-    HOUR_TIMEDELTA = datetime.timedelta(hours=1)
-    LONG_WAITING_TIMEDELTA = datetime.timedelta(minutes=10)
-
     def __init__(self, seed_tuple, *args, **kwargs):
         super(HumanHandler, self).__init__(seed_tuple, *args, **kwargs)
         bot, initial_msg, seed = seed_tuple
@@ -51,21 +46,21 @@ class HumanHandler(telepot.aio.helper.UserHandler):
 
     async def _handle_command_begin(self, message):
         try:
-            await UserService.get_instance().match_partner(self._human)
+            await UserService.get_instance().match_partner(self._human.user)
         except PartnerObtainingError:
-            LOGGER.debug('Looking for partner: %d', self._human.id)
-            await self._human.set_looking_for_partner()
+            LOGGER.debug('Looking for partner: %d', self._human.user.id)
+            await self._human.user.set_looking_for_partner()
         except UserServiceError as err:
             LOGGER.warning('Can\'t set partner for %d. %s', self._human.id, err)
 
     async def _handle_command_end(self, message):
-        partner = self._human.get_partner()
+        partner = self._human.user.get_partner()
         LOGGER.debug(
             '/end: %d -x-> %s',
-            self._human.id,
+            self._human.user_id,
             'none' if partner is None else partner.id,
             )
-        await self._human.end_talk()
+        await self._human.user.end_talk()
 
     async def _handle_command_help(self, message):
         try:
@@ -85,7 +80,7 @@ class HumanHandler(telepot.aio.helper.UserHandler):
             LOGGER.warning('Handle /help command. Can\'t notify user. %s', err)
 
     async def _handle_command_start(self, message):
-        LOGGER.debug('/start: %d', self._human.id)
+        LOGGER.debug('/start: %d', self._human.user.id)
         try:
             await self._sender.send_notification(
                 '*Manual*\n\nHi, I’m Conversational Intelligence Challenge master-bot. Use /begin to start looking '
@@ -116,7 +111,7 @@ class HumanHandler(telepot.aio.helper.UserHandler):
                 await self._sender.send_notification('Unknown command. Look /help for the full list of commands.')
         else:
             try:
-                await self._human.send_to_partner(message)
+                await self._human.user.send_to_partner(message)
             except MissingPartnerError:
                 pass
             except UserError:

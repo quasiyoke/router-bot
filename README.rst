@@ -9,12 +9,12 @@ Deployment
 ::
 
     $ docker network create \
-        --subnet=172.29.0.0/16 \
-        router-bot
+        --subnet=172.30.0.0/16 \
+        router-bot-net
     $ docker run \
         --name=router-bot-mysql \
-        --net=router-bot \
-        --ip=172.29.0.20 \
+        --net=router-bot-net \
+        --ip=172.30.0.20 \
         --env="MYSQL_ROOT_PASSWORD=ZEbMKcFQppk8m8PR3b" \
         --env="MYSQL_DATABASE=router-bot" \
         --env="MYSQL_USER=router-bot" \
@@ -27,9 +27,9 @@ After that write ``configuration/configuration.json`` file like that::
 
     {
         "database": {
-            "host": "172.29.0.20",
-            "name": "router_bot",
-            "user": "router_bot",
+            "host": "172.30.0.20",
+            "name": "router-bot",
+            "user": "router-bot",
             "password": "KbWj0Eua78YGLNLf3K"
         },
         "logging": {
@@ -76,8 +76,8 @@ Now you may run the bot::
 
     $ docker run \
         --name=router-bot \
-        --net=router-bot \
-        --ip=172.29.0.10 \
+        --net=router-bot-net \
+        --ip=172.30.0.10 \
         --volume=`pwd`/configuration:/configuration \
         --detach \
         router-bot

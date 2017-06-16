@@ -40,4 +40,7 @@ setup(
         'telegram-bot-server>=0.1.0,<0.2',
         'telepot>=12.0,<13.0',
         ],
+    dependency_links=[
+        'https://github.com/quasiyoke/telegram-bot-server/tarball/master#egg=telegram-bot-server-0.1.0',
+        ],
     )

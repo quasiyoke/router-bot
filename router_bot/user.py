@@ -9,8 +9,8 @@ import datetime
 import json
 import logging
 from .error import MissingPartnerError, UserError, HumanSenderError
-from .stats_service import StatsService
 from .human_sender_service import HumanSenderService
+from .stats_service import StatsService
 from peewee import CharField, DateTimeField, IntegerField, Model, Proxy
 from telepot.exception import TelegramError
 
@@ -35,113 +35,75 @@ class User(Model):
         if self.looking_for_partner_from is not None:
             # If user is looking for partner
             self.looking_for_partner_from = None
-            try:
-                await self.get_sender().send_notification('Looking for partner was stopped.')
-            except TelegramError as err:
-                LOGGER.warning('End chatting. Can\'t notify user %d: %s', self.id, err)
+            await self.get_concrete_user(). \
+                notify_looking_for_partner_was_finished()
         elif self.get_partner() is not None:
             # If user is chatting now
             try:
-                await self._notify_talk_ended(by_self=True)
+                await self.get_concrete_user(). \
+                    notify_talk_was_finished(by_self=True)
             except UserError as err:
                 LOGGER.warning('End chatting. Can\'t notify user %d: %s', self.id, err)
         await self.set_partner(None)
 
-    def get_partner(self):
-        try:
-            return self._partner
-        except AttributeError:
-            talk = self.get_talk()
-            self._partner = None if talk is None else talk.get_partner(self)
-            return self._partner
+    def get_concrete_user(self):
+        """
+        Raises:
+            UserError If there's no human or client bot of such user.
 
-    def get_sender(self):
-        return HumanSenderService.get_instance().get_or_create_human_sender(self)
+        """
+        try:
+            concrete_user = self.humen.get()
+        except DoesNotExist:
+            try:
+                concrete_user = self.client_bots.get()
+            except DoesNotExist:
+                reason = f'User {self.id} doesn\'t have neither human nor client bot.'
+                LOGGER.error(reason)
+                raise UserError(reason=reason)
+        return concrete_user
+
+    def get_partner(self):
+        talk = self.get_talk()
+        return None if talk is None else talk.get_partner(self)
 
     def get_talk(self):
-        try:
-            return self._talk
-        except AttributeError:
-            from .talk import Talk
-            self._talk = Talk.get_talk(self)
-            return self._talk
+        from .talk import Talk
+        return Talk.get_talk(self)
 
     async def kick(self):
         try:
-            await self._notify_talk_ended(by_self=False)
+            await self.get_concrete_user(). \
+                notify_talk_was_finished(by_self=False)
         except UserError as err:
             LOGGER.warning('Kick. Can\'t notify user %d: %s', self.id, err)
-        self._talk = None
-        self._partner = None
-
-    async def _notify_talk_ended(self, by_self):
-        """
-        Raises:
-            UserError If user we're changing has blocked the bot.
-
-        """
-        sender = self.get_sender()
-        sentences = []
-
-        if by_self:
-            sentences.append('Chat was finished.')
-        else:
-            sentences.append('Your partner has left chat.')
-
-        sentences.append('Feel free to /begin a new talk.')
-
-        try:
-            await sender.send_notification(' '.join(sentences))
-        except TelegramError as err:
-            raise UserError(str(err))
 
     async def notify_partner_found(self, partner):
         """
         Raises:
-            UserError If user we're changing has blocked the bot.
+            UserError If there's no human or client bot of such user or if human we're changing has blocked the bot.
 
         """
-        sender = self.get_sender()
-        sentences = []
-
-        if self.get_partner() is None:
-            sentences.append('Your partner is here.')
-        else:
-            sentences.append('Here\'s another user.')
-
-        if partner.looking_for_partner_from:
-            looked_for_partner_for = datetime.datetime.utcnow() - partner.looking_for_partner_from
-            if looked_for_partner_for >= type(self).LONG_WAITING_TIMEDELTA:
-                # Notify User if his partner did wait too much and could be asleep.
-                minutes = round(looked_for_partner_for.total_seconds() / 60)
-                long_waiting_notification = f'Your partner\'s been looking for you for {minutes} min. Say him ' \
-                    '\"Hello\" -- if he doesn\'t respond to you, launch search again by /begin command.'
-                sentences.append(long_waiting_notification)
-
-        if len(sentences) < 2:
-            sentences.append('Have a nice chat!')
-
-        try:
-            await sender.send_notification(' '.join(sentences))
-        except TelegramError as err:
-            raise UserError(f'Can\'t notify user {self.id}. {err}') from err
+        await self.get_concrete_user(). \
+            notify_partner_found(partner)
 
     async def send(self, message):
         """
-        @raise UserError if can't send message because of unknown content type.
-        @raise TelegramError if user has blocked the bot.
+        Raises:
+            UserError if can't send message because of unknown content type.
+            TelegramError if user has blocked the bot.
+
         """
-        sender = self.get_sender()
-        try:
-            await sender.send(message)
-        except HumanSenderError as err:
-            raise UserError(f'Can\'t send content: {err}') from err
+        await self.get_concrete_user(). \
+            send(message)
 
     async def send_to_partner(self, message):
         """
-        @raise MissingPartnerError if there's no partner for this user.
-        @raise UserError if can't send content.
-        @raise TelegramError if the partner has blocked the bot.
+        Raises:
+            MissingPartnerError if there's no partner for this user.
+            UserError if can't send content.
+            TelegramError if the partner has blocked the bot.
+
         """
         partner = self.get_partner()
         if partner is None:
@@ -154,51 +116,53 @@ class User(Model):
             self.get_talk().increment_sent(self)
 
     async def set_looking_for_partner(self):
-        # Before setting `looking_for_partner_from`, check if it's already set
-        # to prevent lowering priority.
-        if self.looking_for_partner_from is None:
-            self.looking_for_partner_from = datetime.datetime.utcnow()
         try:
-            await self.get_sender().send_notification('Looking for a user for you.')
-        except TelegramError as err:
-            LOGGER.debug(
-                'Set looking for partner. Can\'t notify user. %s',
-                err,
-                )
+            await self.get_concrete_user(). \
+                notify_looking_for_partner()
+        except UserError as err:
             self.looking_for_partner_from = None
+            LOGGER.warning('Can\'t notify ')
+        else:
+            # Before setting `looking_for_partner_from`, check if it's already set
+            # to prevent lowering priority.
+            if self.looking_for_partner_from is None:
+                self.looking_for_partner_from = datetime.datetime.utcnow()
         await self.set_partner(None)
 
     async def set_partner(self, partner):
         """Sets partner for a user. Always saves the model.
 
         """
-        if self.get_partner() == partner:
+        current_partner = self.get_partner()
+        if current_partner == partner:
             self.save()
             return
-        if self._partner is not None:
-            if self._partner.get_partner() == self:
-                # If partner isn't talking with the user because of some
-                # error, we shouldn't kick him.
-                await self._partner.kick()
-            if self._talk is not None:
-                self._talk.end = datetime.datetime.utcnow()
-                self._talk.save()
-        if partner is None:
-            self._talk = None
-            self._partner = None
-            self.save()
-        else:
+        if current_partner is not None:
+            partners_partner = current_partner.get_partner()
+            # If partner isn't talking with the user because of some
+            # error, we shouldn't kick him.
+            if partners_partner == self:
+                await current_partner.kick()
+            else:
+                LOGGER.error(
+                    'User %d has a partner %d which partners with %d, not us!',
+                    self.id,
+                    current_partner.id,
+                    partners_partner.id,
+                    )
+            talk = self.get_talk()
+            if talk is not None:
+                talk.end = datetime.datetime.utcnow()
+                talk.save()
+        if partner is not None:
             from .talk import Talk
-            self._talk = Talk.create(
+            Talk.create(
                 partner1=self,
                 partner2=partner,
                 searched_since=partner.looking_for_partner_from,
                 )
-            self._partner = partner
             if self.looking_for_partner_from is not None:
                 self.looking_for_partner_from = None
-                self.save()
-            partner._talk = self._talk
-            partner._partner = self
             partner.looking_for_partner_from = None
             partner.save()
+        self.save()

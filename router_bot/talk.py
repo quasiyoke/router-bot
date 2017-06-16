@@ -57,9 +57,16 @@ class Talk(Model):
 
     def get_partner(self, user):
         """
-        @raise WrongUserError
+        Raises:
+            WrongUserError
+
         """
-        return User.get(id=self.get_partner_id(user))
+        if user.id == self.partner1_id:
+            return self.partner2
+        elif user.id == self.partner2_id:
+            return self.partner1
+        else:
+            raise WrongUserError()
 
     def get_partner_id(self, user):
         if user.id == self.partner1_id:
