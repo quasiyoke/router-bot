@@ -24,6 +24,7 @@ class ClientBotService(BotService):
 
         """
         super(ClientBotService, self).__init__(bot_cls=ClientBot, *args, **kwargs)
+        self._bots_cache = {}
 
     async def get_all_bots(self):
         return ClientBot.select()
@@ -37,4 +38,9 @@ class ClientBotService(BotService):
             Bot instance or `None`.
 
         """
-        return ClientBot.get(bot_id)
+        try:
+            bot = self._bots_cache[bot_id]
+        except KeyError:
+            bot = ClientBot.get(bot_id)
+            self._bots_cache[bot_id] = bot
+        return bot

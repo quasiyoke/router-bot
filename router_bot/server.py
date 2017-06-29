@@ -19,12 +19,5 @@ class Server(BaseServer):
 
         """
         LOGGER.info('"sendMessage" method. Bot ID %s. Text: "%s".', request.bot.id, request.data['text'])
-        for bot in await self._bot_service.get_all_bots():
-            if bot == request.bot:
-                continue
-            await bot.send_message(
-                chat=request.bot.chat_dict,
-                from_dict=request.bot.user_dict,
-                text=request.data['text'],
-                )
+        request.bot.handle_message(request.data['text'])
         return Response()

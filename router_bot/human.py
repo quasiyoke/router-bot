@@ -6,12 +6,13 @@
 
 import datetime
 import logging
+from .concrete_user import ConcreteUser
 from .error import DbError, HumanSenderError, MissingPartnerError, UserError
 from .stats_service import StatsService
 from .user import User
 from .user_service import UserService
 from .human_sender_service import HumanSenderService
-from peewee import CharField, DatabaseError, DateTimeField, DoesNotExist, ForeignKeyField, IntegerField, Model, Proxy
+from peewee import CharField, DatabaseError, DateTimeField, DoesNotExist, ForeignKeyField, IntegerField, Proxy
 from telepot.exception import TelegramError
 
 LOGGER = logging.getLogger('router_bot.user')
@@ -22,7 +23,7 @@ WIZARD_CHOICES = (
 database_proxy = Proxy()
 
 
-class Human(Model):
+class Human(ConcreteUser):
     user = ForeignKeyField(User, primary_key=True, related_name='humen')
     telegram_id = IntegerField(unique=True)
     wizard = CharField(choices=WIZARD_CHOICES, default='none', max_length=20)
@@ -44,7 +45,7 @@ class Human(Model):
             )
 
     @classmethod
-    def get_or_create_human(self, telegram_id):
+    def get_or_create_human(cls, telegram_id):
         """
         Raises:
             DbError
@@ -52,9 +53,9 @@ class Human(Model):
         """
         try:
             try:
-                human = Human.get(Human.telegram_id == telegram_id)
+                human = cls.get(cls.telegram_id == telegram_id)
             except DoesNotExist:
-                human = Human.create(
+                human = cls.create(
                     telegram_id=telegram_id,
                     )
         except DatabaseError as err:
@@ -63,19 +64,19 @@ class Human(Model):
         return human
 
     @classmethod
-    def get_human(self, telegram_id):
+    def get_human(cls, telegram_id):
         """
         Raises:
             DbError
 
         """
         try:
-            human = Human.get(Human.telegram_id == telegram_id)
+            human = cls.get(cls.telegram_id == telegram_id)
         except (DatabaseError, DoesNotExist) as err:
             raise DbError(f'Database problems during `get_human`: {err}') from err
         return human
 
-    def get_sender(self):
+    def _get_sender(self):
         return HumanSenderService.get_instance().get_or_create_human_sender(self)
 
     async def notify_looking_for_partner(self):
@@ -85,7 +86,7 @@ class Human(Model):
 
         """
         try:
-            await self.get_sender().send_notification('Looking for a user for you.')
+            await self._get_sender().send_notification('Looking for a user for you.')
         except TelegramError as err:
             LOGGER.debug(
                 'Set looking for partner. Can\'t notify user. %s',
@@ -95,7 +96,7 @@ class Human(Model):
 
     async def notify_looking_for_partner_was_finished(self):
         try:
-            await self.get_sender().send_notification('Looking for partner was stopped.')
+            await self._get_sender().send_notification('Looking for partner was stopped.')
         except TelegramError as err:
             LOGGER.warning('End chatting. Can\'t notify user %d: %s', self.user.id, err)
 
@@ -105,7 +106,7 @@ class Human(Model):
             UserError If user we're changing has blocked the bot.
 
         """
-        sender = self.get_sender()
+        sender = self._get_sender()
         sentences = []
 
         if self.user.get_partner() is None:
@@ -132,11 +133,14 @@ class Human(Model):
 
     async def notify_talk_was_finished(self, by_self):
         """
+        Args:
+            by_self (bool)
+
         Raises:
             UserError If human we're notifying has blocked the bot.
 
         """
-        sender = self.get_sender()
+        sender = self._get_sender()
         sentences = []
 
         if by_self:
@@ -153,12 +157,15 @@ class Human(Model):
 
     async def send(self, message):
         """
+        Args:
+            message (str)
+
         Raises:
             UserError if can't send message because of unknown content type.
             TelegramError if user has blocked the bot.
 
         """
-        sender = self.get_sender()
+        sender = self._get_sender()
         try:
             await sender.send(message)
         except HumanSenderError as err:

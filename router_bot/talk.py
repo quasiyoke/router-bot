@@ -55,6 +55,14 @@ class Talk(Model):
             talk.partner2 = user_service.get_cached_user(talk.partner2)
             return talk
 
+    @property
+    def chat_dict(self):
+        return {
+            'bot_id': self.id,
+            'first_name': 'Anonymous',
+            'type': 'private',
+            }
+
     def get_partner(self, user):
         """
         Raises:
