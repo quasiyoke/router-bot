@@ -18,17 +18,49 @@ LOGGER = logging.getLogger('router_bot.client_bot')
 database_proxy = Proxy()
 
 
-class ClientBot(BaseClientBot, ConcreteUser):
+class ClientBot(ConcreteUser, BaseClientBot):
+    """
+    Telegram bot managed by router-bot.
+
+    """
+
     user = ForeignKeyField(User, primary_key=True, related_name='client_bots')
     bot_id = IntegerField(unique=True)
     secret = CharField(max_length=60)
-    webhook = CharField(max_length=127)
+    webhook = CharField(max_length=127, null=True)
 
     class Meta:
         database = database_proxy
 
+    @classmethod
+    def create(cls, *args, **kwargs):
+        """
+        Args:
+            token (str): Telegram bot token like that: "123456789:AAEfqU70n2V6dUK8u4n0u7N581JqPU06766".
+            first_name (str): Bot's first name.
+            update_service (telegram_bot_server.UpdateService)
+
+        Returns:
+            ClientBot instance or `None` in case of bad token.
+
+        """
+        user = User.create()
+        return cls.create_by_token(
+            user=user,
+            *args,
+            **kwargs,
+            )
+
+    def __init__(self, *args, user, **kwargs):
+        super(ClientBot, self).__init__(*args, **kwargs)
+        BaseClientBot.__init__(self, *args, **kwargs)
+        self.user = user
+        self.save(force_insert=True)
+
     async def handle_message(self, message):
         """
+        Handler for incoming message.
+
         Args:
             message (str)
 
@@ -72,10 +104,11 @@ class ClientBot(BaseClientBot, ConcreteUser):
 
         """
         await self.send('/end')
-        #raise NotImplementedError()
 
     async def send(self, message):
         """
+        Send message to the client Telegram bot.
+
         Args:
             message (str)
 
@@ -86,8 +119,8 @@ class ClientBot(BaseClientBot, ConcreteUser):
         """
         talk = self.user.get_talk()
         sender = talk.get_partner(self.user)
-        await bot.send_message(
-                chat=talk.chat_dict,
-                from_dict=sender.user_dict,
-                text=message,
-                )
+        await self.send_message(
+            chat=talk.chat_dict,
+            from_dict=sender.user_dict,
+            text=message,
+            )

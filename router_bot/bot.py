@@ -16,11 +16,11 @@ from telepot.aio.delegate import create_open, pave_event_space
 LOGGER = logging.getLogger('router_bot.bot')
 
 
-class Bot:
+class Bot(telepot.aio.DelegatorBot):
     def __init__(self, configuration):
         user_service = UserService.get_instance()
-        admins_telegram_ids = user_service.admins_telegram_ids
-        self._delegator_bot = telepot.aio.DelegatorBot(
+        admins_telegram_ids = configuration.admins_telegram_ids
+        super(Bot, self).__init__(
             configuration.token,
             [
                 # If the bot isn't chatting with an admin, skip, so for this
@@ -29,6 +29,7 @@ class Bot:
                     per_from_id_in(admins_telegram_ids),
                     create_open,
                     AdminHandler,
+                    user_service,
                     timeout=60,
                     ),
                 # If the bot is chatting with an admin, skip, so for this chat
@@ -44,4 +45,4 @@ class Bot:
 
     async def run(self):
         LOGGER.info('Listening')
-        await self._delegator_bot.message_loop()
+        await self.message_loop()

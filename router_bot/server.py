@@ -19,5 +19,5 @@ class Server(BaseServer):
 
         """
         LOGGER.info('"sendMessage" method. Bot ID %s. Text: "%s".', request.bot.id, request.data['text'])
-        request.bot.handle_message(request.data['text'])
+        await request.bot.handle_message(request.data['text'])
         return Response()

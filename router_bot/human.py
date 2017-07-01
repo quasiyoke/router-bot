@@ -24,6 +24,11 @@ database_proxy = Proxy()
 
 
 class Human(ConcreteUser):
+    """
+    Telegram user.
+
+    """
+
     user = ForeignKeyField(User, primary_key=True, related_name='humen')
     telegram_id = IntegerField(unique=True)
     wizard = CharField(choices=WIZARD_CHOICES, default='none', max_length=20)

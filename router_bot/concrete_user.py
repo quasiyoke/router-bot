@@ -4,6 +4,7 @@
 # You should have received a copy of the GNU Affero General Public License v3
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+from .user import User
 from peewee import Model
 
 
@@ -12,15 +13,6 @@ class ConcreteUser(Model):
     Abstract concrete user :)
 
     """
-
-    @classmethod
-    def create(cls, *args, **kwargs):
-        user = User.create()
-        return super().create(
-            user=user,
-            *args,
-            **kwargs,
-            )
 
     async def notify_looking_for_partner(self):
         """

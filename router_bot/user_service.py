@@ -27,10 +27,6 @@ class UserService:
             cls._instance = cls()
             return cls._instance
 
-    @property
-    def admins_telegram_ids(self):
-        return [user.id for user in User.select()]
-
     def get_cached_user(self, user):
         try:
             return self._users_cache[user.id]

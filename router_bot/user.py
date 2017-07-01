@@ -23,6 +23,11 @@ database_proxy = Proxy()
 
 
 class User(Model):
+    """
+    "Abstract" router-bot user.
+
+    """
+
     looking_for_partner_from = DateTimeField(null=True)
 
     LONG_WAITING_TIMEDELTA = datetime.timedelta(minutes=5)
@@ -99,6 +104,9 @@ class User(Model):
 
     async def send_to_partner(self, message):
         """
+        Args:
+            message (str)
+
         Raises:
             MissingPartnerError if there's no partner for this user.
             UserError if can't send content.

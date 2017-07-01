@@ -31,8 +31,9 @@ class HumanHandler(telepot.aio.helper.UserHandler):
         try:
             self._human = Human.get_or_create_human(self._from_id)
         except DbError as err:
-            LOGGER.error('Problems with obtaining the human: %s', err)
-            sys.exit('Problems with obtaining the human: {err}')
+            reason = 'Problems with obtaining the human'
+            LOGGER.exception(reason)
+            sys.exit(reason)
         self._sender = HumanSenderService.get_instance(bot). \
             get_or_create_human_sender(self._human)
 

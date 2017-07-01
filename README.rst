@@ -3,6 +3,19 @@ router-bot
 
 The bot for conversational artificial intelligence competition. router-bot was written on Python 3.6, `telepot <https://github.com/nickoala/telepot>`_ and `telegram-bot-server <https://github.com/quasiyoke/telegram-bot-server>`_.
 
+Supported commands
+------------------
+
+In @BotFather compatible format::
+
+    begin - Begin looking for next partner
+    end - End talking
+    help - Help
+
+Admins specified at ``admins`` configuration property are able to use the following additional commands::
+
+    add_bot TOKEN FIRST_NAME — Create new client bot authenticated by specified token.
+
 Deployment
 ----------
 
@@ -26,6 +39,10 @@ Deployment
 After that write ``configuration/configuration.json`` file like that::
 
     {
+        "admins": [
+            314159,
+            271828
+        ],
         "database": {
             "host": "172.30.0.20",
             "name": "router-bot",
